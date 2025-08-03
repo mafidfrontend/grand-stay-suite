@@ -2,6 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hotel Management System Design System */
+:root {
+  /* Hotel theme colors */
+  --hotel-primary: #2563eb;
+  --hotel-secondary: #64748b;
+  --hotel-accent: #f59e0b;
+  --hotel-success: #10b981;
+  --hotel-warning: #f59e0b;
+  --hotel-error: #ef4444;
+  
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #2563eb, #3b82f6);
+  --gradient-luxury: linear-gradient(135deg, #f59e0b, #d97706);
+  --gradient-subtle: linear-gradient(180deg, #f8fafc, #e2e8f0);
+  
+  /* Shadows */
+  --shadow-luxury: 0 10px 30px -10px rgba(37, 99, 235, 0.3);
+  --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  
+  /* Transitions */
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Apply hotel theme */
+html {
+  --data-theme: hotel;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Custom components */
+.gradient-primary {
+  background: var(--gradient-primary);
+}
+
+.gradient-luxury {
+  background: var(--gradient-luxury);
+}
+
+.shadow-luxury {
+  box-shadow: var(--shadow-luxury);
+}
+
+.transition-smooth {
+  transition: var(--transition-smooth);
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */
