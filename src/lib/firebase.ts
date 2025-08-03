@@ -4,12 +4,12 @@ import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   // Replace with your Firebase config
-  apiKey: "demo-api-key",
-  authDomain: "hotel-management-demo.firebaseapp.com",
-  projectId: "hotel-management-demo",
-  storageBucket: "hotel-management-demo.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdefghijk"
+  apiKey: "AIzaSyB8t0qcABQz6HNQqbNH4bA1Vwb2OPaw3aY",
+  authDomain: "mehmonxona-31164.firebaseapp.com",
+  projectId: "mehmonxona-31164",
+  storageBucket: "mehmonxona-31164.firebasestorage.app",
+  messagingSenderId: "468038861338",
+  appId: "1:468038861338:web:39c4486d16107370ef47a3"
 };
 
 // Initialize Firebase

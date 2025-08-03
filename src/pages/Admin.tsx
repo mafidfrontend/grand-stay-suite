@@ -12,41 +12,97 @@ import {
   MessageSquare,
   Settings,
   UserCheck,
-  UserX
+  UserX,
+  Loader2
 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { 
+  useBranchStats, 
+  useRoomsByBranch, 
+  useBookingsByBranch, 
+  useComplaintsByBranch 
+} from '@/hooks/useFirebaseData';
+import { StatCardProps } from '@/types';
 
 export default function Admin() {
-  const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const { user } = useAuth();
 
-  const todayStats = {
-    checkIns: 8,
-    checkOuts: 6,
-    totalGuests: 32,
-    availableRooms: 12,
-    occupiedRooms: 23,
-    cleaningRooms: 3,
+  // Use fallback branchId if user doesn't have one (for demo purposes)
+  const branchId = user?.branchId || 'branch-1';
+
+  // Fetch data for the admin's branch
+  const { data: branchStats, isLoading: statsLoading, error: statsError } = useBranchStats(branchId);
+  const { data: rooms, isLoading: roomsLoading, error: roomsError } = useRoomsByBranch(branchId);
+  const { data: bookings, isLoading: bookingsLoading, error: bookingsError } = useBookingsByBranch(branchId);
+  const { data: complaints, isLoading: complaintsLoading, error: complaintsError } = useComplaintsByBranch(branchId);
+
+  // Loading state
+  if (statsLoading || roomsLoading || bookingsLoading || complaintsLoading) {
+    return (
+      <Layout title="Admin Dashboard" subtitle="Branch Management">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p className="text-base-content/70">Loading branch data...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Error state - only show if we have actual errors, not just empty data
+  const hasErrors = statsError || roomsError || bookingsError || complaintsError;
+  const hasData = branchStats || rooms?.length || bookings?.length || complaints?.length;
+  
+  if (hasErrors && !hasData) {
+    return (
+      <Layout title="Admin Dashboard" subtitle="Branch Management">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="text-error text-6xl mb-4">⚠️</div>
+            <h3 className="text-xl font-semibold mb-2">Error Loading Data</h3>
+            <p className="text-base-content/70 mb-4">Unable to load branch information. Please try again later.</p>
+            <div className="text-sm text-base-content/60">
+              <p>Branch ID: {branchId}</p>
+              <p>User: {user?.email}</p>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Use safe defaults if data is not available
+  const safeStats = branchStats || {
+    totalRooms: 0,
+    occupiedRooms: 0,
+    availableRooms: 0,
+    occupancy: 0,
+    todayRevenue: 0,
+    totalBookings: 0,
+    activeBookings: 0,
+    totalComplaints: 0,
+    pendingComplaints: 0,
   };
 
-  const rooms = [
-    { id: 101, status: 'occupied', guest: 'John Smith', checkOut: '2024-08-05', cleaning: false },
-    { id: 102, status: 'available', guest: null, checkOut: null, cleaning: false },
-    { id: 103, status: 'cleaning', guest: null, checkOut: null, cleaning: true },
-    { id: 104, status: 'occupied', guest: 'Sarah Wilson', checkOut: '2024-08-04', cleaning: false },
-    { id: 105, status: 'available', guest: null, checkOut: null, cleaning: false },
-    { id: 106, status: 'occupied', guest: 'Mike Johnson', checkOut: '2024-08-06', cleaning: false },
-  ];
+  const safeRooms = rooms || [];
+  const safeBookings = bookings || [];
+  const safeComplaints = complaints || [];
 
-  const clients = [
-    { id: 1, name: 'John Smith', room: 101, checkIn: '2024-08-02', checkOut: '2024-08-05', status: 'checked-in' },
-    { id: 2, name: 'Sarah Wilson', room: 104, checkIn: '2024-08-01', checkOut: '2024-08-04', status: 'checking-out' },
-    { id: 3, name: 'Mike Johnson', room: 106, checkIn: '2024-08-03', checkOut: '2024-08-06', status: 'checked-in' },
-  ];
+  // Show welcome message if no data exists yet
+  const hasAnyData = safeRooms.length > 0 || safeBookings.length > 0 || safeComplaints.length > 0;
 
-  const complaints = [
-    { id: 1, client: 'John Smith', room: 101, issue: 'Air conditioning not working', status: 'pending', time: '2 hours ago' },
-    { id: 2, client: 'Sarah Wilson', room: 104, issue: 'Noisy neighbors', status: 'resolved', time: '1 day ago' },
-  ];
+  // Calculate today's stats
+  const today = new Date().toISOString().split('T')[0];
+  const checkInsToday = safeBookings.filter(booking => 
+    booking.checkIn === today && booking.status === 'checked-in'
+  ).length;
+  const checkOutsToday = safeBookings.filter(booking => 
+    booking.checkOut === today && booking.status === 'checked-out'
+  ).length;
+  const cleaningRooms = safeRooms.filter(room => room.status === 'cleaning').length;
 
   const getRoomStatusColor = (status: string) => {
     switch (status) {
@@ -57,7 +113,7 @@ export default function Admin() {
     }
   };
 
-  const StatCard = ({ icon: Icon, title, value, color = 'primary' }: any) => (
+  const StatCard = ({ icon: Icon, title, value, color = 'primary' }: StatCardProps) => (
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -118,14 +174,36 @@ export default function Admin() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
+            {/* Welcome Message for Empty Database */}
+            {!hasAnyData && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="card bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20"
+              >
+                <div className="card-body text-center">
+                  <div className="text-4xl mb-4">🏨</div>
+                  <h2 className="text-2xl font-bold text-base-content mb-2">Welcome to Your Branch!</h2>
+                  <p className="text-base-content/70 mb-4">
+                    This is your branch management dashboard. You can start by adding rooms, managing bookings, and handling guest complaints.
+                  </p>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    <button className="btn btn-primary btn-sm">Add Rooms</button>
+                    <button className="btn btn-secondary btn-sm">Create Booking</button>
+                    <button className="btn btn-accent btn-sm">View Reports</button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Today's Stats */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <StatCard icon={UserCheck} title="Check-ins" value={todayStats.checkIns} color="success" />
-              <StatCard icon={UserX} title="Check-outs" value={todayStats.checkOuts} color="warning" />
-              <StatCard icon={Users} title="Total Guests" value={todayStats.totalGuests} color="info" />
-              <StatCard icon={Bed} title="Available" value={todayStats.availableRooms} color="success" />
-              <StatCard icon={Bed} title="Occupied" value={todayStats.occupiedRooms} color="error" />
-              <StatCard icon={Clock} title="Cleaning" value={todayStats.cleaningRooms} color="warning" />
+              <StatCard icon={UserCheck} title="Check-ins" value={checkInsToday} color="success" />
+              <StatCard icon={UserX} title="Check-outs" value={checkOutsToday} color="warning" />
+              <StatCard icon={Users} title="Total Guests" value={safeStats.occupiedRooms} color="info" />
+              <StatCard icon={Bed} title="Available" value={safeStats.availableRooms} color="success" />
+              <StatCard icon={Bed} title="Occupied" value={safeStats.occupiedRooms} color="error" />
+              <StatCard icon={Clock} title="Cleaning" value={cleaningRooms} color="warning" />
             </div>
 
             {/* Quick Actions */}
@@ -161,8 +239,24 @@ export default function Admin() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {rooms.map((room, index) => (
+            {safeRooms.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="card bg-base-100 shadow-md"
+              >
+                <div className="card-body text-center">
+                  <div className="text-6xl mb-4">🛏️</div>
+                  <h2 className="text-xl font-bold text-base-content mb-2">No Rooms Added Yet</h2>
+                  <p className="text-base-content/70 mb-4">
+                    Start by adding rooms to your branch. You can manage room status, assign guests, and track occupancy.
+                  </p>
+                  <button className="btn btn-primary">Add First Room</button>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {safeRooms.map((room, index) => (
                 <motion.div
                   key={room.id}
                   initial={{ opacity: 0, scale: 0.9 }}
@@ -176,7 +270,7 @@ export default function Admin() {
                 >
                   <div className="card-body">
                     <div className="flex items-center justify-between">
-                      <h3 className="card-title text-lg">Room {room.id}</h3>
+                      <h3 className="card-title text-lg">Room {room.roomNumber}</h3>
                       <div className={`badge ${getRoomStatusColor(room.status)}`}>
                         {room.status}
                       </div>
@@ -211,6 +305,7 @@ export default function Admin() {
                 </motion.div>
               ))}
             </div>
+            )}
           </motion.div>
         )}
 
@@ -222,35 +317,49 @@ export default function Admin() {
           >
             <div className="card-body">
               <h2 className="card-title">Current Clients</h2>
-              <div className="overflow-x-auto">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Room</th>
-                      <th>Check-in</th>
-                      <th>Check-out</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {clients.map((client, index) => (
+              {safeBookings.filter(booking => 
+                ['checked-in', 'confirmed'].includes(booking.status)
+              ).length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-6xl mb-4">👥</div>
+                  <h3 className="text-lg font-semibold text-base-content mb-2">No Active Clients</h3>
+                  <p className="text-base-content/70 mb-4">
+                    No clients are currently checked in. New bookings will appear here.
+                  </p>
+                  <button className="btn btn-primary">Create Booking</button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Room</th>
+                        <th>Check-in</th>
+                        <th>Check-out</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {safeBookings.filter(booking => 
+                        ['checked-in', 'confirmed'].includes(booking.status)
+                      ).map((booking, index) => (
                       <motion.tr
-                        key={client.id}
+                        key={booking.id}
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
                       >
-                        <td className="font-medium">{client.name}</td>
-                        <td>{client.room}</td>
-                        <td>{client.checkIn}</td>
-                        <td>{client.checkOut}</td>
+                        <td className="font-medium">{booking.guestName}</td>
+                        <td>{booking.roomNumber}</td>
+                        <td>{booking.checkIn}</td>
+                        <td>{booking.checkOut}</td>
                         <td>
                           <div className={`badge ${
-                            client.status === 'checked-in' ? 'badge-success' : 'badge-warning'
+                            booking.status === 'checked-in' ? 'badge-success' : 'badge-warning'
                           }`}>
-                            {client.status}
+                            {booking.status}
                           </div>
                         </td>
                         <td>
@@ -261,6 +370,7 @@ export default function Admin() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -274,8 +384,18 @@ export default function Admin() {
             <div className="card bg-base-100 shadow-md">
               <div className="card-body">
                 <h2 className="card-title">Guest Complaints</h2>
-                <div className="space-y-4">
-                  {complaints.map((complaint, index) => (
+                {safeComplaints.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="text-6xl mb-4">📝</div>
+                    <h3 className="text-lg font-semibold text-base-content mb-2">No Complaints</h3>
+                    <p className="text-base-content/70 mb-4">
+                      Great! No complaints have been reported. Keep up the excellent service.
+                    </p>
+                    <button className="btn btn-primary">View Service Requests</button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {safeComplaints.map((complaint, index) => (
                     <motion.div
                       key={complaint.id}
                       initial={{ opacity: 0, x: -20 }}
@@ -297,6 +417,7 @@ export default function Admin() {
                     </motion.div>
                   ))}
                 </div>
+                )}
               </div>
             </div>
           </motion.div>
